@@ -1,0 +1,223 @@
+---
+title: "Homework Clusters and PCA"
+author: "Sona Veziryan"
+date: "April 17, 2017"
+output: word_document
+---
+```{r}
+library(readxl)
+
+library(ggplot2)
+gci <-read.csv("gci.xlsx.csv")
+names(gci)
+data<-gci[-c(1,2,15,16,17,18,19)]
+pp<-ggplot(gci, aes(x=Pillar8, y=Pillar12))
+pp+geom_point(color="blue", size=1.5)+xlim(0,7)+ylim(0,7)+theme_bw()+
+  theme(axis.title=element_text(size=34))
+```
+
+```{r}
+pci.<-prcomp(data, center=T, scale=T)
+summary(pci.)
+```
+
+```{r}
+plot(pci., type="l")
+#We can take the first five  components, they together will account for about 93% of the variance (the 5 component model)
+
+```
+
+```{r}
+#We can look at the correlations of the variables and the factors.
+df<-data.frame(gci[,-c(1:2)], pci.$x[,1:5])
+cor_mat<-cor(df)
+cor_mat<-cor_mat[! rownames(cor_mat)  %in% c("PC1", "PC2","PC3","PC4", "PC5"),colnames(cor_mat) %in% c("PC1", "PC2", "PC3","PC4", "PC5")]
+
+print(cor_mat, digits=2)
+
+```
+
+```{r}
+#In PC1 11th pillar: Business sophistication ,2nd pillar: Infrastructure and 12th pillar: Innovation are highly corellated so I will call First PC 'Business sophistication affects' as Business sophistication has the highest corellation in this PC and others factors affect on it.In PC2 corralations are not as strong as in PC1.7th pillar: Labor market efficiency and 10th pillar: Market size has highest corraltion in  PC2 ,so I will call it 'Market size development'.In PC3 Institutions-1st pillar and 3rd pillar: Macroeconomic environment has highest corellation so I wil call it 'Governmental Effects'.In PC4 3rd pillar: Macroeconomic environment, 4th pillar: Health and primary education, 10th pillar: Market size have highest corellation so I call PC4 'Macroeconomic presence '. In PC5 7th pillar: Labor market efficiency,8th pillar: Financial market development Has hishest corelation so I call PC5 as 'Financial market affects on labor'.
+##Now I have don eclustering for this PC conponnects 
+factors<-pci.$x[,1:5]
+dist<-dist(factors, method="euclidian")
+hcl<-hclust(dist, method="single")
+plot(hclust)
+set.seed(1)
+k<-kmeans(factors, 4)
+k$centers
+
+```
+
+
+```{r}
+#For Cluster analysis  , at first , I need to standardize the data
+##standardize the values
+Data<-read.csv("gci.xlsx.csv", row.names = 1)
+Data
+sapply(Data, class)
+nums <- sapply(Data, is.numeric)
+Data[ , nums]
+
+Data<-as.data.frame(scale(Data[ , nums]))
+dist<-dist(Data, method="euclidian")
+dist
+```
+
+```{r}
+##Then I Run hierarchical clustering
+hc<-hclust(dist, method="single")
+
+plot(hc, hang=-1)
+
+```
+
+```{r}
+hc$height
+```
+
+```{r}
+library(cluster)
+hc <- hclust(dist(Data), "ave")
+plot(hc,hang=-1 )
+rect.hclust(hc, 4)
+cutree(hc, h = 4)
+
+
+```
+
+```{r}
+Data$cl_membership<-cutree(hc,k=4) 
+Data
+```
+
+```{r}
+
+set.seed(1)
+
+aggregate(gci, 
+          by=list(Data$cl_membership),
+          FUN="mean", na.rm=TRUE)
+```
+
+```{r}
+k$size
+```
+```{r}
+gci.$cl<-k$cluster
+View(gci.)
+```
+The first cluster I would call "Developing countries" as countries here are mainly developing counrties.
+```{r}
+gci.$Country[gci.$cl==1]
+#[1] Albania                Argentina              Armenia               
+#[4] Bhutan                 Bosnia and Herzegovina Botswana              
+# [7] Brazil                 Cambodia               Cape Verde            
+#[10] Cфte d'Ivoire          Croatia                Dominican Republic    
+#[13] Ecuador                Egypt                  El Salvador           
+#[16] Gambia, The            Georgia                Ghana                 
+#[19] Greece                 Guatemala              Guyana                
+#[22] Honduras               Iran, Islamic Rep.     Jamaica               
+#[25] Jordan                 Kenya                  Kyrgyz Republic       
+#[28] Lao PDR                Lebanon                Moldova               
+#[31] Mongolia               Montenegro             Morocco               
+#[34] Namibia                Rwanda                 Senegal               
+#[37] Serbia                 Seychelles             Tajikistan            
+#[40] Trinidad and Tobago    Tunisia                Ukraine               
+#[43] Vietnam                Zambia                
+#140 Levels: Albania Algeria Argentina Armenia Australia Austria Azerbaijan ... Zimbabwe
+``` 
+The second cluster I would call "Developed countries" as countries here are mainly developed counrties.
+```{r}
+gci.$Country[gci.$cl==2]
+#[1] Australia            Austria              Belgium              Canada              
+#[5] Denmark              Estonia              Finland              France               #[9] Germany              Hong Kong SAR        Iceland              Ireland             
+#[13] Israel               Japan                Luxembourg           Malaysia            
+#[17] Netherlands          New Zealand          Norway               Qatar               
+#[21] Singapore            Sweden               Switzerland          Taiwan, China       
+#[25] United Arab Emirates United Kingdom       United States       
+#140 Levels: Albania Algeria Argentina Armenia Australia Austria Azerbaijan ... Zimbabwe
+```
+The third cluster I would call "Poor countries" as countries here are mainly poor counrties.
+```{r}
+gci.$Country[gci.$cl==3]
+#[1] Algeria      Bangladesh   Benin        Bolivia      Burundi      Cameroon    
+#[7] Chad         Ethiopia     Gabon        Guinea       Haiti        Lesotho     
+#[13] Liberia      Madagascar   Malawi       Mali         Mauritania   Mozambique  
+#[19] Myanmar      Nepal        Nicaragua    Nigeria      Pakistan     Paraguay    
+#[25] Sierra Leone Swaziland    Tanzania     Uganda       Venezuela    Zimbabwe    
+#140 Levels: Albania Algeria Argentina Armenia Australia Austria Azerbaijan ... Zimbabwe
+
+```
+The fourth cluster I would call "Potential Developed and developed countries" as countries here are mainly devepled or developing and relatively rich counrties.
+```{r}
+gci.$Country[gci.$cl==4]
+#[1] Azerbaijan         Bahrain            Bulgaria           Chile             
+#[5] China              Colombia           Costa Rica         Cyprus            
+#[9] Czech Republic     Hungary            India              Indonesia         
+#[13] Italy              Kazakhstan         Korea, Rep.        Kuwait            
+#[17] Latvia             Lithuania          Macedonia, FYR     Malta             
+#[21] Mauritius          Mexico             Oman               Panama            
+#[25] Peru               Philippines        Poland             Portugal          
+#[29] Romania            Russian Federation Saudi Arabia       Slovak Republic   
+#[33] Slovenia           South Africa       Spain              Sri Lanka         
+#[37] Thailand           Turkey             Uruguay           
+#140 Levels: Albania Algeria Argentina Armenia Australia Austria Azerbaijan ... Zimbabwe
+```
+
+
+
+
+
+
+
+
+```{r}
+pca<-prcomp(data, center=T, scale=T)
+summary(pca)
+
+```
+
+```{r}
+dd<-data.frame(data, pci.$x[,1:5])
+cor_mat<-cor(dd)
+cor_mat<-cor_mat[! rownames(cor_mat)  %in% c("PC1", "PC2","PC3","PC4", "PC5"),colnames(cor_mat) %in% c("PC1", "PC2", "PC3","PC4", "PC5")]
+print(cor_mat, digits=2)
+
+```
+
+```{r}
+set.seed(1) 
+K<-kmeans(data,4) 
+names(K)
+K$centers
+
+gci$cl<-k$cluster
+View(gci)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+
+```
+
+
+
+
+
+```{r}
+boxplot(gci$GDP.per.capita~gci$cl, Main="GDP per capita", col=c("blue","red")
+```
+
+
