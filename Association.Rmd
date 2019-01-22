@@ -1,0 +1,91 @@
+---
+title: "Untitled"
+author: "Marta Mamyan"
+date: "April 3, 2017"
+output:
+  word_document: default
+  html_document: default
+---
+
+
+```{r}
+library(arules)
+library(arulesViz)
+library(grid)
+
+uk1<-read.csv("Uk Trainings1.csv")
+uk<-as.matrix(uk1[,-c(1:4)])
+```
+
+
+#The training providing company intends to provide special packages of training courses and define special prices. For this purpose it needs to know which courses are chosen together most frequently. The company also intends to have contracts with commercial organizations, central governmental bodies, local governmental bodies, health centers or educational centers. We want to know what kind of packages should be developed and which sectors are best ones. The company has data about courses taken in other centers. 
+#We took out the first 4 variables and coded the spheres as dummy variables
+
+#then we create the transaction object
+
+```{r}
+trans<-as(uk,"transactions")
+inspect(trans)
+itemFrequencyPlot(trans)
+```
+
+#We can see from the plot that the most frequently chosen course is introduction to SPSS, then SPSS and statistics.The less frequent one is the Answertree. On the other hand people from commercial organizations are the largest segment. We can look in our excel file and find out several facts that can help us make proper decisions. From the dataset we observe that there is 633844$ from commercial, 232355$ from central governmental, 170798$ from local governmental, 122024$ from health and 42077$ from educational centers. We have also counted the number of courses taken in each sector and found out that the largest numbers belong commercial organizations and central governmental bodies, 1515 and 618 accordingly. We can now calculate how much the average profit from 1 course is. For commercial organizations it is 633844:1515=418, for people in central governmental bodies it is 232355:618=375: We can see from the numbers that the average price from a course in commercial organizations is higher than for local bodies. This means that people from commercial organizations attend to more expensive trainings. Now we know on which sector should the emphasize be.
+
+#Now we are running rules
+```{r}
+
+ukrules <- apriori(trans, parameter = list(supp = 0.001, conf = 0.001,   maxlen = 2))
+
+rules_c<-subset(ukrules, lhs %in% 'Commercial')
+rules_lift<-sort(rules_c, by="lift")
+inspect(rules_lift[1:5])
+
+```
+#We can see from the rule that the best choice for commercial organizations are Intermediate techniques, subscription, scripting, fasttrack and answertree. We can interprete the results. If commercial organization (the left hand side), then Intermediate.Techniques (the right side). Lift shows efficieny of the rule in finding consequent variables compared with the random selection. The smaller the lift ratio, the bigger the chance that the values chosen will not be chosen together.In real life this products can even be substitutes. A lift ratio larger than 1.0 implies that the relationship between the antecedent and the consequent values is more significant than would be expected and the stronger the association. In our case we need to find out the items with highest lift ratios. In our example we cannot say that the association is very strong, but it can rather help.
+#The confidence shows the rate of consequents found. The confidence in our case is also not bad, but it could be better. The perfect confidence is equal to 1.
+# The support shows the percentage of transactions where both sides occur.
+
+
+```{r}
+ukrules3 <- apriori(trans, parameter = list(supp = 0.001, conf = 0.001,   maxlen = 3))
+
+rules_c1<-subset(ukrules3, lhs %in% 'Commercial')
+rules_lift3<-sort(rules_c1, by="lift")
+inspect(rules_lift3[1:5])
+```
+#From here we can substract the best packages for Commercial organizations that are if Classification and Clustering, then + Answertree, Market Segmentation + Answertree, Anova+subscription. They also have rather high level of confidence, due to which we can conclude that or packages for the commercial organizations will succeed.
+
+
+```{r}
+ukrules2 <- apriori(trans, parameter = list(supp = 0.001, conf = 0.001, minlen = 2, maxlen=2))
+rules_lift2<-sort(ukrules2, by="lift")
+inspect(rules_lift2[1:20])
+```
+
+#We can notice very good assosiations with this rule. A very good package can be Answertree with privilege, perceptial mapping with anova, market segmentation with Answertree.
+
+
+```{r}
+ukrules1 <- apriori(trans, parameter = list(supp = 0.001, conf = 0.001, minlen = 2, maxlen=3))
+rules_lift1<-sort(ukrules1, by="lift")
+inspect(rules_lift1[1:20])
+```
+#Besides of coordinating resourses to commercial sector, the company can also provide other packages with discount. Although we saw from the plot that Answertree has low relative frequency, it is ver probable that a customer chooses Answertree and Mapinfo, he will also choose Perceptial Mapping, about 82% which is a very good result. Another very good match is if Mapinfo and Market.Segmentation with Anova. These also have a high lift, that means they can even be considered as supplementary courses. 
+
+
+```{r}
+plot(ukrules1, type="scatterplot", 
+     measure=c("confidence", "support"), shading="lift")
+```
+
+#We can visualize the association measures witha scatterplot, where the brighter the color, the higher is the lift of the association, the righter is the scatter on the x-axis, the stronger is the confidence or higher on the y-axis, the higher is the support of the association
+
+
+
+
+
+
+
+
+
+

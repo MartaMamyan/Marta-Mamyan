@@ -1,0 +1,290 @@
+
+#Group Project: Flight Delay
+
+```{r}
+library(cluster)
+library(lattice)
+library(ggplot2)
+library(caret)
+library(gplots)
+library(ROCR)
+library(caTools)
+library(e1071)
+library(rpart)
+library(rpart.plot)
+library(rattle)
+library(gmodels)
+library(nutshell)
+library(class)
+```
+
+```{r}
+data<-read.csv("data_project.csv")
+summary(data)
+```
+several conclusions can be done from the summary of the data: 
+1.The target variable(Delay) is numeric, so we will make it as factor, and the age is factor, so it should be converted to numeric. 
+2.The variable manufacturing has 31 categories but only 5 of them are frequent. So, to decrease the unnecessary complexity of our data we reduced the number of categories from 30 to 6 and got the following categories: BOEING, EMBRAER, AIRBUS INDUSTRIE, BOMBARDIER INC, MCDONNELL DOUGLAS, and other.
+```{r}
+data$Age<-as.numeric(data$Age)
+data$Delay<-as.factor(data$Delay)
+summary(data)
+```
+
+
+```{r}
+library(car)
+data$manufacturer<-recode(data$manufacturer,"'BOEING'='BOEING';'EMBRAER'='EMBRAER';'AIRBUS INDUSTRIE'='AIRBUS INDUSTRIE';'BOMBARDIER INC'='BOMBARDIER INC';'MCDONNELL DOUGLAS'='MCDONNELL DOUGLAS'; else='other'")
+summary(data$manufacturer)
+```
+
+```{r}
+summary(data)
+```
+
+```{r}
+f<-ftable(data$Delay)
+prop.table(f)
+```
+
+```{r}
+plot(data$Delay,col="cornflowerblue" )
+```
+
+```{r}
+str(data)
+```
+
+
+```{r}
+num<-sapply(data, is.numeric)
+num<-names(data)[num==TRUE]
+num
+```
+
+
+```{r}
+c<-c()
+k1<-c()
+for (i in num ){
+  c<-t.test(data[,i]~data$Delay)$p.value
+  k1<-c(k1,c)
+}
+names(k1)<-num
+options(scipen=999) 
+sort(k1, decreasing=T)
+```
+
+As we can see from the table, there is significant relationship between the Delay and almost all numeric variables in the data. However, it is not reasonable to include all above mentioned variables(for example arrival delay(Arr Delay) and Delay of course are correlated, but Arr Delay does not explain reasons of Delay. Likewise we do not include variables ActualElapsedTime, FlightNum, AirTime,CRSElapsedTime). So, the numeric variables that should stay in the model are Distance and Age of the airplane. 
+
+```{r}
+chisq.test(data$Delay, data$aircraft_type)
+chisq.test(data$Delay,data$engine_type)
+chisq.test(data$Delay, data$Season)
+chisq.test(data$Delay, data$UniqueCarrier)
+chisq.test(data$Delay, data$manufacturer)
+```
+As we can see from the Chi-squared test, all factor variables and delay are significantly related. 
+
+Here are some plots to illustrate the relationships between variables.
+
+
+```{r}
+set.seed(1)
+trainingIndex<-createDataPartition(data$Delay, p=.75, list=FALSE)
+Train<-data[trainingIndex,]
+Test<-data[-trainingIndex,]
+```
+
+```{r}
+paste(names(Train),collapse = "+")
+```
+
+```{r}
+frm<-"Delay~Season+Weather+manufacturer+Age+Dest+Distance+aircraft_type"
+```
+
+
+
+```{r}
+logit_1<-glm(frm, Train, family="binomial")
+summary(logit_1)
+```
+
+```{r}
+exp(logit_1$coefficients)
+```
+
+```{r}
+PredTest1<-predict(logit_1,newdata = Test, type="response")
+table(PredTest1>0.5, Test$Delay)
+
+```
+
+```{r}
+pr_label1 <-ifelse(PredTest1>0.5, "1", "0")
+library(caret)
+confusionMatrix(pr_label1,Test$Delay, positive="1")
+```
+
+```{r}
+P_Test1 <- prediction(PredTest1, Test$Delay) 
+perf_logit <- performance(P_Test1,"tpr","fpr")
+plot(perf_logit)
+
+```
+
+```{r}
+performance(P_Test1, "auc")@y.values
+```
+
+```{r}
+frm1<-(Delay~Season+Weather+manufacturer+aircraft_type+engine_type+Age+Dest+Distance)
+```
+
+
+#Decision Tree
+
+```{r}
+library(rpart)
+library(rpart.plot)
+fit=rpart(frm1,  data=Train,  method="class")
+prp(fit, extra=2, type=2, main="Decision tree for Delay")
+```
+
+```{r}
+library(rattle)
+fancyRpartPlot(fit)
+```
+
+```{r}
+asRules(fit)
+
+```
+
+```{r}
+
+pfit=predict(fit, Test, type="class")
+confusionMatrix(pfit, Test$Delay, positive="1")
+```
+
+
+```{r}
+pred_prob=predict(fit, Test, type="prob")
+
+pred = prediction(pred_prob[,2],Test$Delay) 
+perf_Tree = performance(pred,"tpr","fpr")
+plot(perf_Tree)
+```
+
+```{r}
+performance(pred, "auc")@y.values
+```
+
+```{r}
+suppressMessages(library(randomForest))
+set.seed(1)
+r_forest<-randomForest(Delay~Season+Weather+manufacturer+aircraft_type+Age+Distance, data=Train,do.trace=T,ntree=1000, importance=TRUE,   mtry=4,na.action=na.exclude)
+
+```
+
+```{r}
+varImpPlot(r_forest, type=1, main="Variable Importance")
+```
+
+```{r}
+library(pROC)
+p_forest<-predict(r_forest, newdata=Test, type="prob")
+plot(roc(Test$Delay, p_forest[,2]), print.auc = TRUE, col = "blue")
+```
+
+```{r}
+library(randomForest)
+rfit=randomForest(Delay~Season+Weather+UniqueCarrier+manufacturer+aircraft_type+engine_type+Age+Dest+Distance,data = Train,na.action=na.exclude)
+
+
+Forest1<-randomForest(frm1,data=Train,importance = TRUE,ntree = 1500,na.action=na.exclude)
+
+pred_f1<-predict(Forest1, newdata=Test)
+confusionMatrix(pred_f1, Test$Delay, positive="1")
+```
+
+```{r}
+plot(margin(Forest1,Test$Delay))
+```
+
+#KNN
+
+```{r}
+library(caret)
+set.seed(1800)
+
+ctrl<-trainControl(method="cv", number=10)
+
+knnFit2 <- train(Delay~Season+Weather+UniqueCarrier+manufacturer+aircraft_type+engine_type+Age+Dest+Distance, data = Train, method = "knn",
+                trControl = ctrl, 
+                preProcess = c("center","scale"), 
+                tuneGrid=expand.grid(k=5:15),na.action=na.exclude)
+
+#Sona xia nuyn kodic erku hat nuyn anunov baic #vorovhetev mi hatov cher linum ))
+
+
+```
+##The accuracy of the test depends on how well the test separates  the group into the flights that delay and the ones that do not. Accuracy is measured by the area under the ROC curve. An area of 1 represents a perfect test; an area of 0.5 represents a worthless test. The area measures the ability of the model to correctly classify flights that delay and the flights that do not delay. Our AUC is 0.73, it is somewhere in between 0.5 and 1. Anyway I consider this as really reliable model.
+##Accuracy is 0.6832, this is quite high and we can say that our KNN testing is quite accurate.  Our Sensitivity is 0.5283, which shows given that the flight is actually delayed there is 52.8% probability of   accurate prediction.  Our Specificity is 0.7737 .Specificity shows that 77.37 % of not delayed flights were accurately predicted to be not delayed. Probability to choose true Positive among all positive values is 57.7%. Probability to choose true false among all false values is 73.3%.
+##The accuracy of this model is quite high this gives value too this model, and the area under the curve of ROC curve of this model is in a fair level. The specificity of this model is 77.37 percent which is really high and shows that this model is very good at predicting not  delayed flight. 52.8 percent sensitivity shows that the model is not that not bad at predicting actually delayed flight.  
+
+#LDA
+
+#Naive Bayes
+
+```{r}
+f<-ftable(data$Delay)
+prop.table(f)
+```
+
+```{r}
+Bmodel<-naiveBayes(Delay~Season+Weather+UniqueCarrier+manufacturer+aircraft_type+engine_type+Age+Dest+Distance,data=Train, laplace=1)
+names(Bmodel)
+```
+
+```{r}
+Bmodel$apriori
+```
+
+```{r}
+Bmodel$tables
+```
+
+```{r}
+Bmodel$levels
+
+```
+
+```{r}
+Bmodel$call
+```
+
+```{r}
+predTest<-predict(Bmodel, newdata=Test)
+confusionMatrix(predTest, Test$Delay, positive="1")
+```
+
+```{r}
+predTestprobab<-predict(Bmodel, newdata=Test,
+                        type="raw")
+pTest<-prediction(predTestprobab[,2], Test$Delay)
+perf_bayes<-performance(pTest, "tpr","fpr")
+plot(perf_bayes)
+```
+
+
+```{r}
+performance(pTest, "auc")@y.values
+```
+
+```{r}
+
+```
+
+
